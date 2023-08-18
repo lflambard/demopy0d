@@ -7,10 +7,10 @@
 #   - Engine element (Tf)
 #   - Source of Effort (Se)
 #   - Source of Flow (Sf)
-from ansys.solutions.thermalengine0d.solution.Fluid_properties_class import FluidBGM, FluidFuel
-from ansys.solutions.thermalengine0d.solution.EffortFlowPort_class import EffortTF, FlowTF, EffortM, FlowM
-from ansys.solutions.thermalengine0d.solution.Solver import Integrator_Euler
-from ansys.solutions.thermalengine0d.solution.Data_treatment import interpolm, interpolv
+from ansys.solutions.thermalengine0d.model.scripts.Fluid_properties_class import FluidBGM, FluidFuel
+from ansys.solutions.thermalengine0d.model.scripts.EffortFlowPort_class import EffortTF, FlowTF, EffortM, FlowM
+from ansys.solutions.thermalengine0d.model.scripts.Solver import Integrator_Euler, Integrator
+from ansys.solutions.thermalengine0d.model.scripts.Data_treatment import interpolm, interpolv
 
 "------------------------------------------------------------------------"
 "Source of Effort (Se element)"
@@ -58,10 +58,10 @@ class PressureLosses_R:
 
     def Solve(self):
         if (self.E1.P - self.E2.P) >= 0:
-            self.Qm = self.K_PressureLosses * (self.E1.P - self.E2.P) ** 0.5
+            self.Qm = (self.E1.P / self.E1.T / self.E1.R) * self.K_PressureLosses * (self.E1.P - self.E2.P) ** 0.5
             self.Qmh = self.Qm * self.E1.h
         else:
-            self.Qm = -self.K_PressureLosses * (self.E2.P - self.E1.P) ** 0.5
+            self.Qm = -(self.E2.P / self.E2.T / self.E2.R) * self.K_PressureLosses * (self.E2.P - self.E1.P) ** 0.5
             self.Qmh = self.Qm * self.E2.h
 
         "flow port creation"
@@ -84,6 +84,8 @@ class Volume_C:
         self.nH = nH
         self.FAR = FAR
         self.Fluid = FluidBGM(self.nC, self.nH, self.FAR, self.T)
+        self.delta_Qm = 0
+        self.deltaT = 0
         self.E1 = EffortTF(self.P, self.T, self.Fluid.h, self.Fluid.u, self.Fluid.cp, self.Fluid.gamma, self.Fluid.R,
                            self.FAR)
         self.E2= self.E1
@@ -92,17 +94,19 @@ class Volume_C:
         self.Volume = Volume
         self.m = self.P / self.Fluid.R / self.T * self.Volume
 
-    def Solve(self, dt):
+    def Solve(self, dt, method='Euler'):
         self.Fluid = FluidBGM(self.nC, self.nH, self.FAR, self.T)
 
         "mass balance"
-        delta_Qm = self.F1.Qm + self.F2.Qm
-        self.m = Integrator_Euler(self.m, delta_Qm, dt)
+        self.delta_Qm_prev = self.delta_Qm
+        self.delta_Qm = self.F1.Qm + self.F2.Qm
+        self.m = Integrator(self.m, self.delta_Qm, dt, self.delta_Qm_prev, method)
 
         "energy balance"
         delta_Qh = self.F1.Qmh + self.F2.Qmh
-        deltaT = (delta_Qh - self.Fluid.u * delta_Qm) / self.m / (self.Fluid.cp - self.Fluid.R)
-        self.T = Integrator_Euler(self.T, deltaT, dt)
+        self.deltaT_prev = self.deltaT
+        self.deltaT = (delta_Qh - self.Fluid.u * self.delta_Qm) / self.m / (self.Fluid.cp - self.Fluid.R)
+        self.T = Integrator(self.T, self.deltaT, dt, self.deltaT_prev, method)
         self.P = self.m * self.Fluid.R * self.T / self.Volume
 
         "effort port creation"

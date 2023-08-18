@@ -12,7 +12,7 @@ from dash_iconify import DashIconify
 from ansys.solutions.thermalengine0d.solution.definition import (
     Thermalengine0DSolution,
 )
-from ansys.solutions.thermalengine0d.ui import intro_page, first_page, second_page
+from ansys.solutions.thermalengine0d.ui import intro_page, first_page, second_page, config_page
 
 step_list = [
     {
@@ -21,13 +21,18 @@ step_list = [
         "depth": 0,
     },
     {
+        "key": "config_step",
+        "text": "Configuration",
+        "depth": 0,
+    },
+    {
         "key": "first_step",
-        "text": "First Step",
+        "text": "Simulation",
         "depth": 0,
     },
     {
         "key": "second_step",
-        "text": "Second Step",
+        "text": "Results",
         "depth": 0,
     }
 ]
@@ -151,6 +156,8 @@ def display_page(pathname, value):
             page_layout = html.H1("Welcome!")
         elif value == "intro_step":
             page_layout = intro_page.layout(project.steps.intro_step)
+        elif value == "config_step":
+            page_layout = config_page.layout(project.steps.config_step)
         elif value == "first_step":
             page_layout = first_page.layout(project.steps.first_step)
         elif value == "second_step":

@@ -3,8 +3,8 @@
 #   - Injector (Sf)
 
 
-from ansys.solutions.thermalengine0d.solution.EffortFlowPort_class import FlowF
-from ansys.solutions.thermalengine0d.solution.Data_treatment import interpolm
+from ansys.solutions.thermalengine0d.model.scripts.EffortFlowPort_class import FlowF
+from ansys.solutions.thermalengine0d.model.scripts.Data_treatment import interpolm
 
 
 "------------------------------------------------------------------------"
