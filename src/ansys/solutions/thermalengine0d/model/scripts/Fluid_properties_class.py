@@ -4,8 +4,8 @@ import math
 
 class FluidBGM:
 
-    def __init__(self,nC, nH, FAR,T, Tcomb=0, P=0, CO=0):
-        rich=FAR
+    def __init__(self,nC, nH, FAR, T, P=0, Tcomb=0, CO=0):
+        rich = FAR
         "Epsilon calculation (cf Heywood p103)"
         epsilon = 4 / (4 + nH / nC)
 
@@ -100,7 +100,7 @@ class FluidBGM:
 
         " Masse molaire du mélange"
         M_mel=0
-        for i in range(1,6):
+        for i in range(0,6):
             M_mel = M_mel + abs(y[i]) * m[i]
 
 

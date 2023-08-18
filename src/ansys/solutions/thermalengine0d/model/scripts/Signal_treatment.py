@@ -1,5 +1,5 @@
 
-from ansys.solutions.thermalengine0d.solution.Solver import Integrator_Euler
+from ansys.solutions.thermalengine0d.model.scripts.Solver import Integrator_Euler
 
    
 #First Order
@@ -35,5 +35,13 @@ def relay(SW_output, SW_input, SW_on_point, SW_off_point):
 
     if relay >= 1 and SW_input <= SW_off_point:
         relay = 0
+
+    return relay
+
+
+#Derivative
+def derivative(x, x_prev, dt):
+    y = (x - x_prev) / dt
+    return y
 
 
