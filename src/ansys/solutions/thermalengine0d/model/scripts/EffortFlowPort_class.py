@@ -72,6 +72,12 @@ class FlowE:
 "-----------------------------------------------------------"
 "FLUIDS"
 "-----------------------------------------------------------"
+class EffortF:
+    def __init__(self, P, T, h=0):
+        self.P = P
+        self.T = T
+        self.h = h
+
 
 class FlowF:
     def __init__(self, Qm, Qmh, Phi=0):

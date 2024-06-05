@@ -1,4 +1,4 @@
-#Fluid properties for combustion gas and Fuel
+#Fluid properties for combustion gas and Fuel, non compressible fluids
 import math
 
 
@@ -232,3 +232,9 @@ class FluidFuel:
         self.nC = nC
         self.nH = nH
 
+class FluidNC:
+    def __init__(self, T, Cp, BulkModulus):
+        self.T = T
+        self.Cp = Cp
+        self.BulkModulus = BulkModulus
+        self.h = self.T * self.Cp
