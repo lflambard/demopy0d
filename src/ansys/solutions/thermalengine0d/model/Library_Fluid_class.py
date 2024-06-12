@@ -3,8 +3,8 @@
 #   - Injector (Sf)
 
 
-from ansys.solutions.thermalengine0d.model.scripts.EffortFlowPort_class import FlowF, EffortF
-from ansys.solutions.thermalengine0d.model.scripts.Data_treatment import interpolm
+from ansys.solutions.thermalengine0d.model.scripts.EffortFlowPort_class import FlowF, EffortF, EffortM
+from ansys.solutions.thermalengine0d.model.scripts.Data_treatment import interpolm, interpolv
 from ansys.solutions.thermalengine0d.model.scripts.Solver import Integrator
 
 "------------------------------------------------------------------------"
@@ -41,6 +41,46 @@ class FlowSourceFluid:
         self.Phi = Phi
         self.F = FlowF(self.Qm, self.Qmh, self.Phi)
 
+
+"------------------------------------------------------------------------"
+"Electric Pump (Tf element)"
+"------------------------------------------------------------------------"
+class PumpFluid:
+    def __init__(self, E1, E2, Ee, Phi=0):
+        self.E1 = E1
+        self.E2 = E2
+        self.Ee = Ee
+        self.Phi = Phi
+        self.Qm = 0
+        self.Qmh = self.Qm * self.E1.h
+        self.F1 = FlowF(-self.Qm, -self.Qmh)
+        self.F2 = FlowF(self.Qm, self.Qmh)
+
+
+    def Param(self, x_pump, z_flow, Rho, Cp):
+        self.x_pump = x_pump
+        self.z_flow = z_flow
+        self.Rho = Rho
+        self.Cp = Cp
+
+    def Solve(self):
+        "massic flow calculation"
+        self.Qv = interpolv(self.x_pump, self.z_flow, self.Ee)
+        self.Qm = self.Qv * self.Rho
+
+        "Outlet temperature calculation"
+        if self.Qm == 0:
+            self.T2 = self.E1.T
+        else:
+            self.T2 = self.E1.T + self.Phi / self.Qm / self.Cp
+
+
+        "flow port creation"
+        self.F1 = FlowF(-self.Qm, -self.Qm*self.E1.T*self.Cp)
+        self.F2 = FlowF(self.Qm, self.Qm*self.T2*self.Cp)
+
+
+
 "------------------------------------------------------------------------"
 "(Non) adiabatic Volume function (C element)"
 "------------------------------------------------------------------------"
@@ -75,7 +115,7 @@ class VolumeFluid_C:
         self.deltaT_prev = self.deltaT
         self.deltaT = (delta_Qh - self.Cp * self.T * self.delta_Qm) / self.m / self.Cp
         self.T = Integrator(self.T, self.deltaT, dt, self.deltaT_prev, method)
-        self.P = self.P
+        self.P = Integrator(self.P, self.delta_Qm * self.BulkModulus / self.Volume / self.Rho, dt, self.delta_Qm_prev * self.BulkModulus / self.Volume / self.Rho, method)
 
         "effort port creation"
         self.E1 = EffortF(self.P, self.T)
