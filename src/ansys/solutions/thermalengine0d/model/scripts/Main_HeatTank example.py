@@ -13,9 +13,9 @@ time1 = time.time()
 "SIMULATION PARAMETER"
 "-----------------------------------------------------------"
 start_simu = 0
-end_simu = 5000
-step_simu = 0.01
-sample_time = 0.1
+end_simu = 25
+step_simu = 0.1
+sample_time = 0.2
 LastVal = (end_simu - start_simu) / step_simu
 
 "-----------------------------------------------------------"
@@ -28,12 +28,17 @@ config = ConfigParser()
 "INIT"
 "-----------------------------------------------------------"
 P0 = 150000
-T0 = 293
-Cp_water = 4180
-Rho_water = 1000
+T0 = 300
+Tout = 295
+Cp_water = 4182
+Rho_water = 0.5
+h_air = 10; "convection coefficient for air W/m²/K"
 BulkModulus_water = 2e9
-Volume_Tank = 0.05
-T_control = 500
+Height_Tank = 0.14
+Diameter_Tank = 0.05 * 2
+Surface_Tank = math.pi * Diameter_Tank ** 2 / 4
+Volume_Tank = math.pi * Diameter_Tank ** 2 / 4 * Height_Tank
+T_control = 350
 Flow_init = FlowSourceFluid(0, T0 * Cp_water)
 
 "Creation of vectors for saving / plots"
@@ -50,7 +55,7 @@ PI_Heat = PI_control(T0, T0)
 "MODEL PARAM"
 "-----------------------------------------------------------"
 HeatTank.Param(Volume_Tank, Cp_water, Rho_water, BulkModulus_water)
-PI_Heat.Param(100, 0.5, -10000, 50000)
+PI_Heat.Param(10, 1, 0, 10)
 
 "-----------------------------------------------------------"
 "SIMULATION"
@@ -75,7 +80,8 @@ for i in range(1, int(LastVal+1)):
     PI_Heat.Solve(step_simu, method)
 
     "Heat Tank"
-    HeatTank.Phi = PI_Heat.y
+    Phi_convection = h_air * Surface_Tank * (Tout - HeatTank.E2.T)
+    HeatTank.Phi = PI_Heat.y + Phi_convection
     HeatTank.Solve(step_simu, method)
 
 
