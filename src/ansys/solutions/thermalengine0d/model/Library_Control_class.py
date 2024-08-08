@@ -1,5 +1,6 @@
 #Control Library
 # Contains:
+#   - Input_control (scalar)
 #   - PI_control (anti saturated)
 #   - PID control (anti saturated)
 #   - Electric Motor Control
@@ -12,15 +13,25 @@ from ansys.solutions.thermalengine0d.model.scripts.Data_treatment import interpo
 
 
 "------------------------------------------------------------------------"
+"Input_control (scalar)"
+"------------------------------------------------------------------------"
+class Input_control:
+    def __init__(self, value=0):
+        self.value = value
+
+    def Param(self, value):
+        self.value = value
+
+"------------------------------------------------------------------------"
 "PI Controller (with anti saturation)"
 "------------------------------------------------------------------------"
 
 class PI_control:
-    def __init__(self, x_Ord, x_Act, y0=0, Ki_eps=0):
+    def __init__(self, x_Ord=0, x_Act=0, y0=0, Ki_eps=0):
         self.x_Ord = x_Ord
         self.x_Act = x_Act
         self.y = y0
-        self.Ki_eps = 0
+        self.Ki_eps = Ki_eps
         self.eps = 0
 
     def Param(self, Kp, Ki, x_min, x_max):

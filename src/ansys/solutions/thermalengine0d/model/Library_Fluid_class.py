@@ -3,7 +3,8 @@
 #   - Injector (Sf)
 
 
-from ansys.solutions.thermalengine0d.model.scripts.EffortFlowPort_class import FlowF, EffortF, EffortM
+from ansys.solutions.thermalengine0d.model.scripts.EffortFlowPort_class import FlowF, EffortF
+from ansys.solutions.thermalengine0d.model.scripts.EffortFlowPort_class import EffortTH
 from ansys.solutions.thermalengine0d.model.scripts.Data_treatment import interpolm, interpolv
 from ansys.solutions.thermalengine0d.model.scripts.Solver import Integrator
 
@@ -34,14 +35,24 @@ class Injector_Sf:
 "Source of Flow (Sf element)"
 "------------------------------------------------------------------------"
 class FlowSourceFluid:
-    def __init__(self, Qm, h, Phi=0):
+    def __init__(self, Qm=0, h=0, Phi=0):
         self.Qm = Qm
         self.h = h
         self.Qmh = Qm * self.h
         self.Phi = Phi
         self.F = FlowF(self.Qm, self.Qmh, self.Phi)
 
+    def Param(self, Qm, h, Phi=0):
+        self.Qm = Qm
+        self.h = h
+        self.Qmh = Qm * self.h
+        self.Phi = Phi
+        self.F = FlowF(self.Qm, self.Qmh, self.Phi)
 
+    def Solve(self, dt, method='Euler'):
+        self.dt = dt
+        self.method = method
+        self.F = FlowF(self.Qm, self.Qmh, self.Phi)
 "------------------------------------------------------------------------"
 "Electric Pump (Tf element)"
 "------------------------------------------------------------------------"
@@ -82,26 +93,38 @@ class PumpFluid:
 
 
 "------------------------------------------------------------------------"
-"(Non) adiabatic Volume function (C element)"
+"Non adiabatic Volume function (C element)"
 "------------------------------------------------------------------------"
 class VolumeFluid_C:
-    def __init__(self, F1, F2, Phi=0, P0=1e5, T0=298):
-        self.F1 = F1
-        self.F2 = F2
-        self.Phi = Phi
-        self.P = P0
-        self.T = T0
+    def __init__(self, F1=0, F2=0, Fth=0):
+        if F1 == 0:
+            self.F1 = FlowF(0, 0)
+        else:
+            self.F1 = F1
+        if F2 == 0:
+            self.F2 = FlowF(0, 0)
+        else:
+            self.F2 = F2
+        if Fth == 0:
+            self.Fth = FlowF(0, 0)
+        else:
+            self.Fth = Fth
+
         self.delta_Qm = 0
         self.deltaT = 0
-        self.E1 = EffortF(self.P, self.T)
-        self.E2 = self.E1
 
-    def Param(self, Volume, Cp, Rho, BulkModulus):
+
+    def Param(self, Volume, Cp, Rho, BulkModulus, P0=1e5, T0=298):
         self.Volume = Volume
         self.Cp = Cp
         self.Rho = Rho
         self.BulkModulus = BulkModulus
         self.m = self.Volume * self.Rho
+        self.P = P0
+        self.T = T0
+        self.E1 = EffortF(self.P, self.T)
+        self.E2 = self.E1
+        self.Eth = EffortTH(self.T)
 
     def Solve(self, dt, method='Euler'):
 
@@ -111,7 +134,7 @@ class VolumeFluid_C:
         self.m = Integrator(self.m, self.delta_Qm, dt, self.delta_Qm_prev, method)
 
         "energy balance"
-        delta_Qh = self.F1.Qmh + self.F2.Qmh + self.Phi
+        delta_Qh = self.F1.Qmh + self.F2.Qmh + self.Fth.Phi
         self.deltaT_prev = self.deltaT
         self.deltaT = (delta_Qh - self.Cp * self.T * self.delta_Qm) / self.m / self.Cp
         self.T = Integrator(self.T, self.deltaT, dt, self.deltaT_prev, method)
@@ -120,4 +143,62 @@ class VolumeFluid_C:
         "effort port creation"
         self.E1 = EffortF(self.P, self.T)
         self.E2 = self.E1
+        self.Eth = EffortTH(self.T)
 
+"------------------------------------------------------------------------"
+"Non adiabatic Volume function (C element) with external heating"
+"------------------------------------------------------------------------"
+class VolumeFluid_C_2HEX:
+    def __init__(self, F1=0, F2=0, Fth1=0, Fth2=0):
+        if F1 == 0:
+            self.F1 = FlowF(0, 0)
+        else:
+            self.F1 = F1
+        if F2 == 0:
+            self.F2 = FlowF(0, 0)
+        else:
+            self.F2 = F2
+        if Fth1 == 0:
+            self.Fth1 = FlowF(0, 0)
+        else:
+            self.Fth1 = Fth1
+        if Fth2 == 0:
+            self.Fth2 = FlowF(0, 0)
+        else:
+            self.Fth2 = Fth2
+        self.delta_Qm = 0
+        self.deltaT = 0
+
+
+    def Param(self, Volume, Cp, Rho, BulkModulus, P0=1e5, T0=298):
+        self.Volume = Volume
+        self.Cp = Cp
+        self.Rho = Rho
+        self.BulkModulus = BulkModulus
+        self.m = self.Volume * self.Rho
+        self.P = P0
+        self.T = T0
+        self.E1 = EffortF(self.P, self.T)
+        self.E2 = self.E1
+        self.Eth1 = EffortTH(self.T)
+        self.Eth2 = EffortTH(self.T)
+
+    def Solve(self, dt, method='Euler'):
+
+        "mass balance"
+        self.delta_Qm_prev = self.delta_Qm
+        self.delta_Qm = self.F1.Qm + self.F2.Qm
+        self.m = Integrator(self.m, self.delta_Qm, dt, self.delta_Qm_prev, method)
+
+        "energy balance"
+        delta_Qh = self.F1.Qmh + self.F2.Qmh + self.Fth1.Phi + self.Fth2.Phi
+        self.deltaT_prev = self.deltaT
+        self.deltaT = (delta_Qh - self.Cp * self.T * self.delta_Qm) / self.m / self.Cp
+        self.T = Integrator(self.T, self.deltaT, dt, self.deltaT_prev, method)
+        self.P = Integrator(self.P, self.delta_Qm * self.BulkModulus / self.Volume / self.Rho, dt, self.delta_Qm_prev * self.BulkModulus / self.Volume / self.Rho, method)
+
+        "effort port creation"
+        self.E1 = EffortF(self.P, self.T)
+        self.E2 = self.E1
+        self.Eth1 = EffortTH(self.T)
+        self.Eth2 = EffortTH(self.T)

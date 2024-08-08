@@ -9,7 +9,6 @@ from ansys.solutions.thermalengine0d.model.Library_Mechanics_class import Shaft_
 from ansys.solutions.thermalengine0d.model.Library_Electrical_class import EMotor_Tf, LIBattery_C
 from ansys.solutions.thermalengine0d.model.scripts.EffortFlowPort_class import EffortM, FlowM, EffortE, FlowE, EffortMT, FlowMT
 from ansys.solutions.thermalengine0d.model.scripts.Data_treatment import interpolv
-
 time1 = time.time()
 "-----------------------------------------------------------"
 "SIMULATION PARAMETER"

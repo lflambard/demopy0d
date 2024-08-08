@@ -84,3 +84,15 @@ class FlowF:
         self.Qm = Qm
         self.Qmh = Qmh
         self.Phi = Phi
+
+"-----------------------------------------------------------"
+"Thermal"
+"-----------------------------------------------------------"
+class EffortTH:
+    def __init__(self, T):
+        self.T = T
+
+
+class FlowTH:
+    def __init__(self, Phi):
+        self.Phi = Phi

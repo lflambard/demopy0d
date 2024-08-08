@@ -5,7 +5,9 @@ import math
 import time
 from configparser import ConfigParser
 from ansys.solutions.thermalengine0d.model.Library_Fluid_class import VolumeFluid_C, FlowSourceFluid
-from ansys.solutions.thermalengine0d.model.Library_Control_class import PI_control
+from ansys.solutions.thermalengine0d.model.Library_Control_class import PI_control, Input_control
+from ansys.solutions.thermalengine0d.model.Library_Thermal_class import EffortSourceTH, FlowSourceTH, HET_R
+
 
 
 time1 = time.time()
@@ -14,7 +16,7 @@ time1 = time.time()
 "-----------------------------------------------------------"
 start_simu = 0
 end_simu = 50
-step_simu = 1
+step_simu = 0.1
 sample_time = 1
 LastVal = (end_simu - start_simu) / step_simu
 
@@ -40,7 +42,7 @@ Diameter_Tank = 0.05 * 2
 Surface_Tank = math.pi * Diameter_Tank ** 2 / 4
 Volume_Tank = math.pi * Diameter_Tank ** 2 / 4 * Height_Tank
 T_control = 350
-Flow_init = FlowSourceFluid(0, T0 * Cp_water)
+
 
 "Creation of vectors for saving / plots"
 result_simu = np.zeros((int(LastVal+1 * step_simu / sample_time), 5))
@@ -49,15 +51,25 @@ time_simu = np.arange(1, LastVal+2)
 "-----------------------------------------------------------"
 "MODEL CREATION"
 "-----------------------------------------------------------"
-HeatTank1 = VolumeFluid_C(Flow_init.F, Flow_init.F, 0, P0, T0)
-HeatTank2 = VolumeFluid_C(Flow_init.F, Flow_init.F, 0, P0, T0)
-PI_Heat = PI_control(T0, T0)
+AmbientAir = EffortSourceTH()
+HeatTank1 = VolumeFluid_C()
+Tank1to2Convection = HET_R()
+HeatTank2 = VolumeFluid_C()
+TankConvection = HET_R()
+Heating = FlowSourceTH()
+Target = Input_control()
+PI_Heat = PI_control()
 
 "-----------------------------------------------------------"
 "MODEL PARAM"
 "-----------------------------------------------------------"
-HeatTank1.Param(Volume_Tank / 2, Cp_water, Rho_water, BulkModulus_water)
-HeatTank2.Param(Volume_Tank / 2, Cp_water, Rho_water, BulkModulus_water)
+AmbientAir.Param(Tout)
+HeatTank1.Param(Volume_Tank / 2, Cp_water, Rho_water, BulkModulus_water, P0, T0)
+Tank1to2Convection.Param(h_tank, Surface_Tank)
+HeatTank2.Param(Volume_Tank / 2, Cp_water, Rho_water, BulkModulus_water, P0, T0)
+TankConvection.Param(h_air, Surface_Tank)
+Heating.Param(0)
+Target.Param(T_control)
 PI_Heat.Param(1, 0.5, 0, 10)
 
 "-----------------------------------------------------------"
@@ -78,18 +90,29 @@ for i in range(1, int(LastVal+1)):
     time_simu[i] = i * step_simu + start_simu
 
     "Heat Control"
-    PI_Heat.x_Ord = T_control
-    PI_Heat.x_Act = HeatTank2.E1.T
+    PI_Heat.x_Ord = Target.value
+    PI_Heat.x_Act = HeatTank2.E2.T
     PI_Heat.Solve(step_simu, method)
 
+    "Heating"
+    Heating.Fth = FlowSourceTH(PI_Heat.y)
+
+    "Thermal Exchanges (convection)"
+    TankConvection.Eth1 = AmbientAir.Eth
+    TankConvection.Eth2 = HeatTank2.Eth
+    TankConvection.Solve()
+
     "Heat Tank1"
-    Phi_transfer = h_tank * Surface_Tank * (HeatTank2.E2.T - HeatTank1.E2.T)
-    HeatTank1.Phi = PI_Heat.y + Phi_transfer
+    HeatTank1.Fth = FlowSourceTH(Heating.Fth.Phi + Tank1to2Convection.Fth1.Phi)
     HeatTank1.Solve(step_simu, method)
 
+    "Thermal Exchanges Tank 1 to 2 (convection)"
+    Tank1to2Convection.Eth1 = HeatTank1.Eth
+    Tank1to2Convection.Eth2 = HeatTank2.Eth
+    Tank1to2Convection.Solve()
+
     "Heat Tank2"
-    Phi_convection = h_air * Surface_Tank * (Tout - HeatTank2.E2.T)
-    HeatTank2.Phi = - Phi_transfer + Phi_convection
+    HeatTank2.Fth = FlowSourceTH(Tank1to2Convection.Fth2.Phi + TankConvection.Fth2.Phi)
     HeatTank2.Solve(step_simu, method)
 
 
