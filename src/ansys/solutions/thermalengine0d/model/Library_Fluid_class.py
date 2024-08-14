@@ -3,7 +3,7 @@
 #   - Injector (Sf)
 
 
-from ansys.solutions.thermalengine0d.model.scripts.EffortFlowPort_class import FlowF, EffortF
+from ansys.solutions.thermalengine0d.model.scripts.EffortFlowPort_class import FlowF, EffortF, FlowE
 from ansys.solutions.thermalengine0d.model.scripts.EffortFlowPort_class import EffortTH
 from ansys.solutions.thermalengine0d.model.scripts.Data_treatment import interpolm, interpolv
 from ansys.solutions.thermalengine0d.model.scripts.Solver import Integrator
@@ -53,42 +53,58 @@ class FlowSourceFluid:
         self.dt = dt
         self.method = method
         self.F = FlowF(self.Qm, self.Qmh, self.Phi)
+
 "------------------------------------------------------------------------"
-"Electric Pump (Tf element)"
+"Electric Pump with Heating (Tf element)"
 "------------------------------------------------------------------------"
 class PumpFluid:
-    def __init__(self, E1, E2, Ee, Phi=0):
-        self.E1 = E1
-        self.E2 = E2
+    def __init__(self, E1=0, E2=0, Ee=0, I_ord=0):
+        if E1 == 0:
+            self.E1 = EffortF(1e5, 293)
+        else:
+            self.E1 = E1
+        if E1 == 0:
+            self.E2 = EffortF(1e5, 293)
+        else:
+            self.E2 = E2
         self.Ee = Ee
-        self.Phi = Phi
+        self.I_ord = I_ord
+        self.I = 0
+        self.Fe = FlowE(self.I)
         self.Qm = 0
-        self.Qmh = self.Qm * self.E1.h
+        self.Qmh = 0
         self.F1 = FlowF(-self.Qm, -self.Qmh)
         self.F2 = FlowF(self.Qm, self.Qmh)
 
 
-    def Param(self, x_pump, z_flow, Rho, Cp):
+    def Param(self, x_pump, z_flow, Rho, Cp, deltaT_heating = 0):
         self.x_pump = x_pump
         self.z_flow = z_flow
         self.Rho = Rho
         self.Cp = Cp
+        self.deltaT_heating = deltaT_heating
 
-    def Solve(self):
+    def Solve(self, dt, method='Euler'):
+        self.dt = dt
+        self.method = method
+
+        self.I = self.I_ord
         "massic flow calculation"
-        self.Qv = interpolv(self.x_pump, self.z_flow, self.Ee)
+        self.Qv = interpolv(self.x_pump, self.z_flow, self.I)
         self.Qm = self.Qv * self.Rho
 
         "Outlet temperature calculation"
-        if self.Qm == 0:
+        if self.Qm <= 0:
             self.T2 = self.E1.T
         else:
-            self.T2 = self.E1.T + self.Phi / self.Qm / self.Cp
+            self.T2 = self.E1.T + self.deltaT_heating
 
 
         "flow port creation"
         self.F1 = FlowF(-self.Qm, -self.Qm*self.E1.T*self.Cp)
         self.F2 = FlowF(self.Qm, self.Qm*self.T2*self.Cp)
+
+        self.Fe = FlowE(self.I)
 
 
 

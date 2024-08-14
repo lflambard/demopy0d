@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter.filedialog import askopenfilename
 from configparser import ConfigParser
 from ansys.solutions.thermalengine0d.model.scripts.Import_Model import ImportModel
-from ansys.solutions.thermalengine0d.model.Library_Fluid_class import VolumeFluid_C, VolumeFluid_C_2HEX, FlowSourceFluid
+from ansys.solutions.thermalengine0d.model.Library_Fluid_class import VolumeFluid_C, VolumeFluid_C_2HEX, FlowSourceFluid, PumpFluid
 from ansys.solutions.thermalengine0d.model.Library_Control_class import PI_control, Input_control
 from ansys.solutions.thermalengine0d.model.Library_Thermal_class import EffortSourceTH, FlowSourceTH, HET_R
 
@@ -16,8 +16,8 @@ time1 = time.time()
 "SIMULATION PARAMETER"
 "-----------------------------------------------------------"
 start_simu = 0
-end_simu = 25
-step_simu = 1
+end_simu = 7500
+step_simu = 0.1
 sample_time = 1
 LastVal = (end_simu - start_simu) / step_simu
 method = 'Euler'
@@ -55,10 +55,11 @@ exec(Model.model_result_init)
 incr_save_old = 0
 print ("time="+repr(time_simu[0]))
 
+
 for i in range(1, int(LastVal+1)):
     time_simu[i] = i * step_simu + start_simu
     exec(Model.model_solve)
-    print(Model.model_solve)
+
 
     "-----------------------------------------------------------"
     "Save results according to the defined sample time"
@@ -86,4 +87,8 @@ plt.subplot(223)
 plt.plot(result_simu[0:incr_save, 0], result_simu[0:incr_save, 4])
 plt.xlabel('time [s]')
 plt.ylabel('Heat Tank Pressure [Pa]')
+if result_simu.shape[1]>5:
+    plt.subplot(224)
+    plt.plot(result_simu[0:incr_save, 0], result_simu[0:incr_save, 5], 'b',result_simu[0:incr_save, 0], result_simu[0:incr_save, 6], 'g', result_simu[0:incr_save, 0], result_simu[0:incr_save, 2], 'r')
+    plt.ylabel('Heat tank Parts temperature [K]')
 plt.show()

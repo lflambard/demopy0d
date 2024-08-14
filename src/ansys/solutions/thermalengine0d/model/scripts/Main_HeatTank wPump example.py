@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 import math
 import time
 from configparser import ConfigParser
-from ansys.solutions.thermalengine0d.model.Library_Fluid_class import VolumeFluid_C, FlowSourceFluid, PumpFluid
-from ansys.solutions.thermalengine0d.model.Library_Control_class import PI_control
-
+from ansys.solutions.thermalengine0d.model.Library_Fluid_class import VolumeFluid_C, PumpFluid
+from ansys.solutions.thermalengine0d.model.Library_Control_class import PI_control, Input_control
+from ansys.solutions.thermalengine0d.model.Library_Thermal_class import EffortSourceTH, HET_R
 
 time1 = time.time()
 "-----------------------------------------------------------"
@@ -14,9 +14,12 @@ time1 = time.time()
 "-----------------------------------------------------------"
 start_simu = 0
 end_simu = 7500
-step_simu = 0.01
-sample_time = 0.1
+step_simu = 0.1
+sample_time = 1
 LastVal = (end_simu - start_simu) / step_simu
+method = 'Euler'
+time_simu = np.arange(1, LastVal+2)
+time_simu[0] = start_simu
 
 "-----------------------------------------------------------"
 "SIMULATION CONFIG IMPORT"
@@ -29,6 +32,7 @@ config = ConfigParser()
 "-----------------------------------------------------------"
 P0 = 150000
 T0 = 293
+Tout = 295
 Cp_water = 4180
 Rho_water = 1000
 h_air = 8; "convection coefficient for air W/m²/K"
@@ -39,30 +43,36 @@ Surface_Tank = math.pi * Diameter_Tank ** 2 / 2 + math.pi * Diameter_Tank * Heig
 Volume_Tank = math.pi * Diameter_Tank ** 2 / 4 * Height_Tank
 T_control = 500
 DeltaTPump_max = 50
-Flow_init = FlowSourceFluid(0, T0 * Cp_water)
+
 
 "Creation of vectors for saving / plots"
 result_simu = np.zeros((int(LastVal+1 * step_simu / sample_time), 9))
-time_simu = np.arange(1, LastVal+2)
+
 
 "-----------------------------------------------------------"
 "MODEL CREATION"
 "-----------------------------------------------------------"
-HeatTank = VolumeFluid_C(Flow_init.F, Flow_init.F, 0, P0, T0)
-Pump = PumpFluid(HeatTank.E1, HeatTank.E2, 0, 0)
-PI_Heat = PI_control(T0, T0)
+AmbientAir = EffortSourceTH()
+TankConvection = HET_R()
+Target = Input_control()
+HeatTank = VolumeFluid_C()
+Pump = PumpFluid()
+PI_Heat = PI_control()
 
 "-----------------------------------------------------------"
 "MODEL PARAM"
 "-----------------------------------------------------------"
-HeatTank.Param(Volume_Tank, Cp_water, Rho_water, BulkModulus_water)
-Pump.Param([0, 10], [0, 0.001], Rho_water, Cp_water)
+AmbientAir.Param(Tout)
+HeatTank.Param(Volume_Tank, Cp_water, Rho_water, BulkModulus_water, P0, T0)
+Pump.Param([0, 10], [0, 0.001], Rho_water, Cp_water, DeltaTPump_max)
+TankConvection.Param(h_air, Surface_Tank)
+Target.Param(T_control)
 PI_Heat.Param(0.1, 0.1, 0, 10)
 
 "-----------------------------------------------------------"
 "SIMULATION"
 "-----------------------------------------------------------"
-time_simu[0] = start_simu
+
 incr_save_old = 0
 print ("time="+repr(time_simu[0]))
 result_simu[0, 0] = time_simu[0]
@@ -74,29 +84,33 @@ result_simu[0, 5] = 0
 result_simu[0, 6] = T0 - 273
 result_simu[0, 7] = 0
 
-method = 'Euler'
 
 for i in range(1, int(LastVal+1)):
     time_simu[i] = i * step_simu + start_simu
 
     "Heat Control"
-    PI_Heat.x_Ord = T_control
-    PI_Heat.x_Act = HeatTank.E1.T
+    PI_Heat.x_Ord = Target.value
+    PI_Heat.x_Act = HeatTank.Eth.T
     PI_Heat.Solve(step_simu, method)
 
-    "Pump"
-    Pump.E1 = HeatTank.E2
-    Pump.E2 = HeatTank.E1
-    Pump.Ee = PI_Heat.y
-    Pump.Phi = Pump.F2.Qm * Rho_water * DeltaTPump_max
-    Pump.Solve()
+    "Thermal Exchanges (convection)"
+    TankConvection.Eth1 = AmbientAir.Eth
+    TankConvection.Eth2 = HeatTank.Eth
+    TankConvection.Solve(step_simu, method)
 
     "Heat Tank - non adiabatic Tank (Thermal losses)"
     HeatTank.F1 = Pump.F2
     HeatTank.F2 = Pump.F1
-    Phi_convection = h_air * Surface_Tank * (T0 - HeatTank.E2.T)
-    HeatTank.Phi = Phi_convection
+    HeatTank.Fth = TankConvection.Fth2
     HeatTank.Solve(step_simu, method)
+
+    "Pump"
+    Pump.E1 = HeatTank.E2
+    Pump.E2 = HeatTank.E1
+    Pump.I_ord = PI_Heat.y
+    Pump.Solve(step_simu, method)
+
+
 
 
     "-----------------------------------------------------------"
@@ -112,8 +126,8 @@ for i in range(1, int(LastVal+1)):
         result_simu[incr_save, 4] = PI_Heat.y
         result_simu[incr_save, 5] = Pump.F2.Qm
         result_simu[incr_save, 6] = Pump.T2 - 273
-        result_simu[incr_save, 7] = Pump.Phi
-        result_simu[incr_save, 8] = - HeatTank.Phi
+        result_simu[incr_save, 7] = 0
+        result_simu[incr_save, 8] = - HeatTank.Fth.Phi
 
     incr_save_old = incr_save
 
@@ -140,7 +154,7 @@ plt.ylabel('Pump flow [kg/s]')
 plt.subplot(235)
 plt.plot(result_simu[0:incr_save, 0],result_simu[0:incr_save, 2],'b',result_simu[0:incr_save, 0], result_simu[0:incr_save, 6],'g')
 plt.xlabel('time [s]')
-plt.ylabel('Pump Temperature [K]')
+plt.ylabel('Pump Temperature [°C]')
 plt.subplot(236)
 plt.plot(result_simu[0:incr_save, 0], result_simu[0:incr_save, 7],'b',result_simu[0:incr_save, 0], result_simu[0:incr_save, 8],'g')
 plt.xlabel('time [s]')
